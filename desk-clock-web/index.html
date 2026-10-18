@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Desk Clock</title>
+  
+  <!-- Mobile & PWA Meta Tags -->
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Desk Clock">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="Responsive Mobile Desk Clock with custom clock size, auto/manual video rotation, endlessly looping background, Screen Wake Lock, and Fullscreen mode.">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Hidden File Input for Gallery Video Selection -->
+  <input type="file" id="video-file-input" accept="video/*" aria-label="Select custom background video" style="display: none;">
+
+  <!-- Video Background Layer -->
+  <div class="video-stage rotate-0" id="video-stage">
+    <video
+      id="bg-video"
+      autoplay
+      muted
+      loop
+      playsinline
+      webkit-playsinline
+      disablePictureInPicture
+      disableRemotePlayback
+      preload="auto"
+      src="assets/matrix.mp4"
+    ></video>
+    <!-- Hidden procedural canvas for generator presets -->
+    <canvas id="generator-canvas" style="display: none;"></canvas>
+  </div>
+
+  <!-- Screen Dimmer Overlay for Night Stand / Bedside Mode -->
+  <div class="dimmer-layer" id="dimmer-layer"></div>
+
+  <!-- Center Digital Clock Display with Custom Scalable Size -->
+  <main class="clock-container" id="clock-container">
+    <div class="clock-time" id="clock-time">00:00</div>
+    <div class="clock-sub" id="clock-sub">
+      <span class="clock-date" id="clock-date">--</span>
+      <span class="clock-seconds" id="clock-seconds" style="display: none;">:00</span>
+      <span class="clock-ampm" id="clock-ampm" style="display: none;"></span>
+    </div>
+  </main>
+
+  <!-- Interactive Tap & Pinch Area (covers entire screen) -->
+  <div class="touch-interceptor" id="touch-interceptor"></div>
+
+  <!-- Pinch-to-zoom Realtime HUD indicator -->
+  <div class="pinch-hud" id="pinch-hud">
+    <span class="pinch-hud-icon">🔍</span>
+    <span id="pinch-hud-text">Clock Size: 100%</span>
+  </div>
+
+  <!-- ==========================================================================
+       ALWAYS-VISIBLE FLOATING QUICK ACTION BAR (Android & PC Optimized)
+       Houses:
+        1. Settings Button (opens settings panel)
+        2. Full Mode Button (enters fullscreen)
+        3. Exit Button (exits fullscreen or closes settings, also triggers on Escape)
+       ========================================================================== -->
+  <nav class="floating-action-bar" id="floating-action-bar" aria-label="Clock Controls">
+    <!-- Settings Button -->
+    <button type="button" class="floating-btn" id="floating-settings-btn" title="Open Settings" aria-label="Open Settings">
+      <svg class="floating-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span class="floating-btn-text">Settings</span>
+    </button>
+
+    <!-- Full Mode Button -->
+    <button type="button" class="floating-btn" id="floating-fullmode-btn" title="Full Mode" aria-label="Enter Full Mode">
+      <svg class="floating-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+        <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+        <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+        <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+      </svg>
+      <span class="floating-btn-text" id="fullmode-label">Full Mode</span>
+    </button>
+
+    <!-- Exit Button (Exits Full Mode or closes Settings, also triggers on Escape) -->
+    <button type="button" class="floating-btn exit-btn" id="floating-exit-btn" title="Exit Full Mode / Close (Escape)" aria-label="Exit">
+      <svg class="floating-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+      <span class="floating-btn-text">Exit</span>
+    </button>
+  </nav>
+
+  <!-- ==========================================================================
+       SETTINGS DRAWER / MODAL OVERLAY
+       ========================================================================== -->
+  <div class="controls-overlay" id="controls-overlay" aria-hidden="true">
+    <!-- Top Bar: Status Badges, Quick Toggles & Exit Close Button -->
+    <div class="overlay-top-bar">
+      <div class="status-badge" id="wake-lock-badge" title="Screen Wake Lock Status">
+        <span class="status-dot"></span>
+        <span class="status-text" id="wake-lock-text">Awake</span>
+      </div>
+
+      <div class="top-actions">
+        <button type="button" class="icon-toggle-btn" id="format-toggle-btn" title="Toggle 12h / 24h format">
+          <span id="format-label">24H</span>
+        </button>
+        <button type="button" class="icon-toggle-btn" id="seconds-toggle-btn" title="Toggle seconds display">
+          <span>:SS</span>
+        </button>
+        <!-- Dedicated Close/Exit Button on top of settings -->
+        <button type="button" class="icon-toggle-btn close-btn" id="close-settings-btn" title="Exit / Close Settings (Escape)" aria-label="Close Settings">
+          <span>✕ Close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Section: Quick Adjustment Drawers -->
+    <div class="overlay-middle-section">
+      <!-- Primary Background & Fullscreen Actions inside Settings -->
+      <div class="quick-action-row">
+        <!-- Change Background Button (Exact Requirement) -->
+        <button type="button" class="btn primary-action-btn" id="change-bg-btn" aria-label="Change Background Video">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+            <circle cx="9" cy="9" r="2"/>
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+            <path d="M12 7v6"/>
+            <path d="M9 10h6"/>
+          </svg>
+          <span>Change Background</span>
+        </button>
+
+        <!-- Go Fullscreen Button -->
+        <button type="button" class="btn primary-action-btn" id="fullscreen-btn" aria-label="Toggle Fullscreen">
+          <svg class="btn-icon" id="fullscreen-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+            <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+          </svg>
+          <span id="fullscreen-text">Go Fullscreen</span>
+        </button>
+      </div>
+
+      <!-- 1. Clock Size Controller -->
+      <div class="control-card" id="clock-size-card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="4 7 4 4 20 4 20 7"/>
+              <line x1="9" x2="15" y1="20" y2="20"/>
+              <line x1="12" x2="12" y1="4" y2="20"/>
+            </svg>
+            <span>Clock Size</span>
+          </div>
+          <span class="card-value" id="clock-size-val">100%</span>
+        </div>
+
+        <div class="slider-row">
+          <button type="button" class="stepper-btn" id="clock-size-minus" aria-label="Decrease clock size">−</button>
+          <input type="range" id="clock-size-slider" min="50" max="230" value="100" step="5" aria-label="Clock size percentage">
+          <button type="button" class="stepper-btn" id="clock-size-plus" aria-label="Increase clock size">+</button>
+        </div>
+
+        <div class="quick-chips-row">
+          <button type="button" class="chip-btn" data-size="70">Small</button>
+          <button type="button" class="chip-btn active" data-size="100">Medium</button>
+          <button type="button" class="chip-btn" data-size="140">Large</button>
+          <button type="button" class="chip-btn" data-size="185">Giant</button>
+        </div>
+      </div>
+
+      <!-- 2. Video Rotate & Best Fit Controller -->
+      <div class="control-card" id="video-adjust-card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+            </svg>
+            <span>Video Orientation & Fit</span>
+          </div>
+          <span class="card-value" id="current-rotation-label">Auto Fit</span>
+        </div>
+
+        <!-- Rotation Angle Selector -->
+        <div class="quick-chips-row rotation-chips">
+          <button type="button" class="chip-btn active" data-rotation="auto" title="Automatically rotate video to best fit mobile orientation">Auto Fit</button>
+          <button type="button" class="chip-btn" data-rotation="0" title="Standard 0°">0°</button>
+          <button type="button" class="chip-btn" data-rotation="90" title="Rotate 90° clockwise">90°</button>
+          <button type="button" class="chip-btn" data-rotation="180" title="Rotate 180° upside down">180°</button>
+          <button type="button" class="chip-btn" data-rotation="270" title="Rotate 270°">270°</button>
+        </div>
+
+        <!-- Fit Mode Selector -->
+        <div class="fit-mode-row">
+          <span class="sub-label">Fit:</span>
+          <button type="button" class="fit-btn active" id="fit-contain-btn" title="Preserve 100% video without cropping (letterboxed)">Contain (No Crop)</button>
+          <button type="button" class="fit-btn" id="fit-cover-btn" title="Fill entire screen">Fill (Cover)</button>
+        </div>
+      </div>
+
+      <!-- 3. Presets Panel -->
+      <div class="control-card" id="presets-card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+            </svg>
+            <span>Background Presets</span>
+          </div>
+        </div>
+        <div class="presets-grid">
+          <button type="button" class="preset-chip active" data-preset="matrix">
+            <span class="chip-dot matrix-color"></span> Matrix Code
+          </button>
+          <button type="button" class="preset-chip" data-preset="cosmic">
+            <span class="chip-dot cosmic-color"></span> Cosmic Aurora
+          </button>
+          <button type="button" class="preset-chip" data-preset="starfield">
+            <span class="chip-dot starfield-color"></span> Deep Starfield
+          </button>
+          <button type="button" class="preset-chip" data-preset="fire">
+            <span class="chip-dot fire-color"></span> Cozy Hearth
+          </button>
+          <button type="button" class="preset-chip" data-preset="cyber">
+            <span class="chip-dot cyber-color"></span> Cyber Grid
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. Quick Brightness Dimmer -->
+      <div class="control-card" id="dimmer-card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+            <span>Bedside Dimmer</span>
+          </div>
+          <span class="card-value" id="brightness-val">100%</span>
+        </div>
+        <div class="slider-row">
+          <input type="range" id="brightness-slider" min="10" max="100" value="100" step="5" aria-label="Screen Brightness">
+        </div>
+      </div>
+
+      <!-- Explicit Bottom Exit Button -->
+      <div class="modal-exit-row">
+        <button type="button" class="btn exit-action-btn" id="modal-exit-btn">
+          <span>✕ Close & Exit Settings</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Desk Clock",
+    "slug": "desk-clock",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "userInterfaceStyle": "dark",
+    "androidStatusBar": {
+      "hidden": true,
+      "translucent": true
+    },
+    "androidNavigationBar": {
+      "visible": "immersive"
+    },
+    "android": {
+      "package": "com.yourname.deskclock",
+      "permissions": [
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.WAKE_LOCK"
+      ]
+    },
+    "plugins": [
+      "expo-video",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "LANDSCAPE"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Desk Clock to access your videos to set a custom background."
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Desk Clock Omni</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&family=Bebas+Neue&family=Space+Mono&family=Playfair+Display:ital@1&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --clock-color: #ffffff;
+            --date-color: #b3b3b3;
+            --clock-size: 24vw;
+            --clock-font: 'Inter', sans-serif;
+            --glow-spread: 40px;
+            --dim-alpha: 0.2;
+        }
+        
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: 'Inter', sans-serif; }
+        
+        #bg-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; transition: object-fit 0.5s ease; }
+        
+        #dim-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,var(--dim-alpha)); z-index: 2; pointer-events: none; transition: background 0.3s ease; }
+        
+        /* Clock Overlay */
+        #clock-container {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            user-select: none; pointer-events: none; width: 100%; text-align: center;
+        }
+        #clock { 
+            color: var(--clock-color); font-size: var(--clock-size); font-family: var(--clock-font);
+            font-weight: 200; letter-spacing: -2px; line-height: 0.8; 
+            text-shadow: 0px 10px var(--glow-spread) rgba(0, 0, 0, 0.8), 0px 2px 10px rgba(0,0,0,0.5); 
+            white-space: nowrap; margin: 0; padding: 0; transition: all 0.3s;
+        }
+        #date {
+            color: var(--date-color); font-size: calc(var(--clock-size) * 0.12); font-family: 'Inter', sans-serif; 
+            font-weight: 400; letter-spacing: 4px; text-transform: uppercase; margin-top: 2vh; 
+            text-shadow: 0px 4px 15px rgba(0, 0, 0, 0.8); transition: color 0.3s;
+        }
+        #ampm-indicator {
+            position: absolute; right: -4vw; bottom: 2vw; color: var(--date-color); 
+            font-size: calc(var(--clock-size) * 0.15); font-weight: 400; letter-spacing: 1px; 
+            text-shadow: 0px 4px 15px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Controls */
+        #controls-overlay { 
+            position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%); 
+            z-index: 20; display: flex; gap: 12px; opacity: 0; transition: opacity 0.5s ease; 
+            pointer-events: none; flex-wrap: wrap; justify-content: center; width: 95%;
+        }
+        #controls-overlay.visible { opacity: 1; pointer-events: auto; }
+        
+        .glass-btn { 
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); 
+            border-radius: 40px; padding: 12px 20px; color: rgba(255, 255, 255, 0.9); 
+            font-size: 0.9rem; font-weight: 400; letter-spacing: 1px; cursor: pointer; 
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); transition: all 0.3s ease; 
+            display: flex; align-items: center; gap: 8px; white-space: nowrap;
+        }
+        .glass-btn:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+        .glass-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+        /* Settings */
+        #settings-panel { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.95); 
+            background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); 
+            border-radius: 24px; z-index: 30; color: white; width: 90%; max-width: 400px;
+            max-height: 85vh; display: flex; flex-direction: column; opacity: 0; pointer-events: none; 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+        }
+        #settings-panel.active { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+        
+        .settings-header { padding: 25px 25px 15px; text-align: center; font-size: 1.2rem; font-weight: 700; letter-spacing: 2px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .settings-content { padding: 20px 25px; overflow-y: auto; flex-grow: 1; }
+        .settings-content::-webkit-scrollbar { width: 6px; }
+        .settings-content::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .settings-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        
+        .category-title { font-size: 0.8rem; color: rgba(255,255,255,0.5); letter-spacing: 2px; text-transform: uppercase; margin: 20px 0 15px; font-weight: 700; }
+        .category-title:first-child { margin-top: 0; }
+        
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 0.95rem; color: rgba(255,255,255,0.9); }
+        .setting-column { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        .setting-column label { font-size: 0.95rem; display: flex; justify-content: space-between;}
+        
+        select { background: rgba(0,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; cursor: pointer; outline: none; }
+        input[type="color"] { -webkit-appearance: none; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; padding: 0; background: none; border: 2px solid rgba(255,255,255,0.3); }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; outline: none; margin-top: 5px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; cursor: pointer; }
+        
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 34px; border: 1px solid rgba(255,255,255,0.2); }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: rgba(255,255,255,0.3); border-color: rgba(255,255,255,0.5); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        
+        .settings-footer { padding: 15px 25px 25px; flex-shrink: 0; }
+        #close-settings { width: 100%; background: #ffffff; border: none; padding: 14px; border-radius: 12px; color: #000; font-size: 1rem; font-weight: 700; cursor: pointer; transition: 0.3s; }
+        
+        #file-input { display: none; }
+        #toast { position: absolute; top: 40px; left: 50%; transform: translateX(-50%) translateY(-20px); background: rgba(0,0,0,0.8); color: white; padding: 12px 24px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0; transition: all 0.4s; pointer-events: none; z-index: 50; backdrop-filter: blur(10px); }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        
+        .playlist-count { font-size: 0.8rem; color: #aaa; text-align: center; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <video id="bg-video" loop autoplay muted playsinline></video>
+    <div id="dim-overlay"></div>
+    
+    <div id="clock-container">
+        <div style="position: relative;">
+            <div id="clock">00:00</div>
+            <div id="ampm-indicator"></div>
+        </div>
+        <div id="date">JANUARY 1</div>
+    </div>
+    
+    <div id="controls-overlay">
+        <button class="glass-btn" id="change-btn">
+            <svg viewBox="0 0 24 24"><path d="M21,3H3C2,3 1,4 1,5V19A2,2 0 0,0 3,21H21C22,21 23,20 23,19V5C23,4 22,3 21,3M5,17L8.5,12.5L11,15.5L14.5,11L19,17H5Z"/></svg>
+            Playlist
+        </button>
+        <button class="glass-btn" id="next-btn" style="display: none;">
+            <svg viewBox="0 0 24 24"><path d="M4,5V19L11,12M18,5V19H20V5M11,5V19L18,12"/></svg>
+            Skip
+        </button>
+        <button class="glass-btn" id="settings-btn">
+            <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.98C19.47,12.66 19.5,12.34 19.5,12C19.5,11.66 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.65 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.65 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.66 4.5,12C4.5,12.34 4.53,12.66 4.57,12.98L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.98Z"/></svg>
+        </button>
+        <button class="glass-btn" id="fullscreen-btn">
+            <svg viewBox="0 0 24 24"><path d="M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z"/></svg>
+        </button>
+    </div>
+    
+    <div id="settings-panel">
+        <h2 class="settings-header">SETTINGS</h2>
+        <div class="settings-content">
+            
+            <div class="category-title">Playlist & Video</div>
+            <div class="playlist-count" id="pl-count">No videos saved.</div>
+            
+            <div class="setting-row">
+                <label>Auto-Rotate Video</label>
+                <select id="rotate-picker">
+                    <option value="none">Never (Loop One)</option>
+                    <option value="open">Every App Open</option>
+                    <option value="1m">Every 1 Minute</option>
+                    <option value="5m">Every 5 Minutes</option>
+                    <option value="30m">Every 30 Minutes</option>
+                    <option value="1h">Every 1 Hour</option>
+                </select>
+            </div>
+            
+            <div class="setting-row">
+                <label>Video Fit</label>
+                <select id="fit-picker">
+                    <option value="cover">Fill Screen (Zoom)</option>
+                    <option value="contain">Show All (Letterbox)</option>
+                </select>
+            </div>
+            
+            <div class="setting-column">
+                <label><span>Background Dim</span> <span id="dim-val">20%</span></label>
+                <input type="range" id="dim-slider" min="0" max="9" step="1" value="2">
+            </div>
+
+            <div class="category-title">Typography & Colors</div>
+            
+            <div class="setting-row">
+                <label>Clock Font</label>
+                <select id="font-picker">
+                    <option value="'Inter', sans-serif">Modern</option>
+                    <option value="'Bebas Neue', sans-serif">Bold</option>
+                    <option value="'Space Mono', monospace">Digital</option>
+                    <option value="'Playfair Display', serif">Elegant</option>
+                </select>
+            </div>
+            
+            <div class="setting-column">
+                <label><span>Clock Size</span> <span id="size-val">24vw</span></label>
+                <input type="range" id="size-slider" min="10" max="40" step="1" value="24">
+            </div>
+
+            <div class="setting-row">
+                <label>Clock Color</label><input type="color" id="clock-color" value="#ffffff">
+            </div>
+            <div class="setting-row">
+                <label>Date Color</label><input type="color" id="date-color" value="#b3b3b3">
+            </div>
+
+            <div class="category-title">Time Options</div>
+            
+            <div class="setting-row">
+                <label>Time Format</label>
+                <select id="format-picker">
+                    <option value="12">12-Hour AM/PM</option>
+                    <option value="24">24-Hour Military</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>Show Date</label><label class="switch"><input type="checkbox" id="date-toggle" checked><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+                <label>Show Seconds</label><label class="switch"><input type="checkbox" id="seconds-toggle"><span class="slider"></span></label>
+            </div>
+        </div>
+        <div class="settings-footer">
+            <button id="close-settings">Done</button>
+        </div>
+    </div>
+
+    <!-- Allow multiple video selection for playlist! -->
+    <input type="file" id="file-input" accept="video/*" multiple>
+    <div id="toast">Saved!</div>
+
+    <script>
+        const root = document.documentElement;
+        const video = document.getElementById('bg-video');
+        const toast = document.getElementById('toast');
+        const nextBtn = document.getElementById('next-btn');
+        const plCount = document.getElementById('pl-count');
+        
+        let playlist = [];
+        let currentVidIndex = 0;
+        let currentObjectURL = null;
+        let rotationTimer = null;
+
+        function showToast(msg, duration=3000) {
+            toast.innerText = msg; toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), duration);
+        }
+
+        // ==========================================
+        // 1. DATABASE LOGIC (IndexedDB for persistence)
+        // ==========================================
+        const dbName = "DeskClockOmniDB";
+        let db;
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(dbName, 1);
+                req.onupgradeneeded = e => {
+                    db = e.target.result;
+                    if(!db.objectStoreNames.contains("videos")) {
+                        db.createObjectStore("videos", { keyPath: "id", autoIncrement: true });
+                    }
+                };
+                req.onsuccess = e => { db = e.target.result; resolve(); };
+                req.onerror = e => reject(e);
+            });
+        }
+
+        async function saveVideosToDB(files) {
+            return new Promise((resolve) => {
+                const tx = db.transaction("videos", "readwrite");
+                const store = tx.objectStore("videos");
+                store.clear(); // Replace existing playlist to save storage
+                for(let file of files) store.put({ file: file });
+                tx.oncomplete = () => resolve();
+            });
+        }
+
+        async function loadVideosFromDB() {
+            return new Promise((resolve) => {
+                const tx = db.transaction("videos", "readonly");
+                const store = tx.objectStore("videos");
+                const req = store.getAll();
+                req.onsuccess = e => resolve(e.target.result.map(r => r.file));
+            });
+        }
+
+        // ==========================================
+        // 2. SETTINGS & CONFIG
+        // ==========================================
+        const inputs = {
+            font: document.getElementById('font-picker'), size: document.getElementById('size-slider'),
+            cColor: document.getElementById('clock-color'), dColor: document.getElementById('date-color'),
+            dim: document.getElementById('dim-slider'), fit: document.getElementById('fit-picker'),
+            format: document.getElementById('format-picker'), dateToggle: document.getElementById('date-toggle'),
+            secToggle: document.getElementById('seconds-toggle'), rotate: document.getElementById('rotate-picker')
+        };
+
+        let config = {
+            font: "'Inter', sans-serif", size: 24, cColor: "#ffffff", dColor: "#b3b3b3",
+            dim: 2, glow: 40, fit: "cover", format: "12", showDate: true, showSec: false,
+            rotate: "none", lastIndex: 0
+        };
+
+        try { const saved = localStorage.getItem('deskClockOmni'); if (saved) config = { ...config, ...JSON.parse(saved) }; } catch (e) {}
+
+        // Init inputs
+        inputs.font.value = config.font; inputs.size.value = config.size;
+        inputs.cColor.value = config.cColor; inputs.dColor.value = config.dColor;
+        inputs.dim.value = config.dim; inputs.fit.value = config.fit;
+        inputs.format.value = config.format; inputs.dateToggle.checked = config.showDate;
+        inputs.secToggle.checked = config.showSec; inputs.rotate.value = config.rotate;
+        currentVidIndex = config.lastIndex || 0;
+
+        function applyConfig() {
+            root.style.setProperty('--clock-font', config.font); root.style.setProperty('--clock-size', config.size + 'vw');
+            root.style.setProperty('--clock-color', config.cColor); root.style.setProperty('--date-color', config.dColor);
+            root.style.setProperty('--dim-alpha', config.dim / 10);
+            video.style.objectFit = config.fit;
+            document.getElementById('date').style.display = config.showDate ? 'block' : 'none';
+            document.getElementById('size-val').innerText = config.size + 'vw';
+            document.getElementById('dim-val').innerText = (config.dim * 10) + '%';
+            
+            try { localStorage.setItem('deskClockOmni', JSON.stringify(config)); } catch(e) {}
+            applyRotationLogic();
+            updateClock();
+        }
+
+        // Listeners
+        inputs.font.addEventListener('change', e => { config.font = e.target.value; applyConfig(); });
+        inputs.size.addEventListener('input', e => { config.size = e.target.value; applyConfig(); });
+        inputs.cColor.addEventListener('input', e => { config.cColor = e.target.value; applyConfig(); });
+        inputs.dColor.addEventListener('input', e => { config.dColor = e.target.value; applyConfig(); });
+        inputs.dim.addEventListener('input', e => { config.dim = e.target.value; applyConfig(); });
+        inputs.fit.addEventListener('change', e => { config.fit = e.target.value; applyConfig(); });
+        inputs.format.addEventListener('change', e => { config.format = e.target.value; applyConfig(); });
+        inputs.dateToggle.addEventListener('change', e => { config.showDate = e.target.checked; applyConfig(); });
+        inputs.secToggle.addEventListener('change', e => { config.showSec = e.target.checked; applyConfig(); });
+        inputs.rotate.addEventListener('change', e => { config.rotate = e.target.value; applyConfig(); });
+
+        // ==========================================
+        // 3. PLAYLIST LOGIC
+        // ==========================================
+        function playCurrentVideo() {
+            if(playlist.length === 0) { plCount.innerText = "No videos saved."; return; }
+            if(currentVidIndex >= playlist.length) currentVidIndex = 0;
+            
+            if(currentObjectURL) URL.revokeObjectURL(currentObjectURL);
+            currentObjectURL = URL.createObjectURL(playlist[currentVidIndex]);
+            video.src = currentObjectURL;
+            video.play().catch(e => console.log(e));
+            
+            nextBtn.style.display = playlist.length > 1 ? "flex" : "none";
+            plCount.innerText = `Playlist: ${playlist.length} video(s) | Playing #${currentVidIndex + 1}`;
+            
+            config.lastIndex = currentVidIndex;
+            localStorage.setItem('deskClockOmni', JSON.stringify(config));
+        }
+
+        function applyRotationLogic() {
+            clearInterval(rotationTimer);
+            if(playlist.length <= 1) return;
+            
+            let ms = 0;
+            if(config.rotate === '1m') ms = 60000;
+            if(config.rotate === '5m') ms = 300000;
+            if(config.rotate === '30m') ms = 1800000;
+            if(config.rotate === '1h') ms = 3600000;
+            
+            if(ms > 0) {
+                rotationTimer = setInterval(() => {
+                    currentVidIndex = (currentVidIndex + 1) % playlist.length;
+                    playCurrentVideo();
+                }, ms);
+            }
+        }
+
+        // Initialize App on Load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initDB();
+            playlist = await loadVideosFromDB();
+            
+            if(config.rotate === 'open' && playlist.length > 1) {
+                currentVidIndex = (currentVidIndex + 1) % playlist.length;
+            }
+            playCurrentVideo();
+            applyRotationLogic();
+            applyConfig();
+        });
+
+        // Input File Handler
+        document.getElementById('file-input').addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length > 0) {
+                showToast("Saving to device... Please wait.", 4000);
+                await saveVideosToDB(files);
+                playlist = files;
+                currentVidIndex = 0;
+                playCurrentVideo();
+                applyRotationLogic();
+                showToast(`Saved ${files.length} video(s)!`);
+            }
+            resetHideTimer();
+        });
+
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); resetHideTimer();
+            if(playlist.length > 1) {
+                currentVidIndex = (currentVidIndex + 1) % playlist.length;
+                playCurrentVideo();
+                applyRotationLogic(); // reset interval
+            }
+        });
+
+        // ==========================================
+        // 4. CLOCK & UI LOGIC
+        // ==========================================
+        function updateClock() {
+            const now = new Date(); let hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            let ampm = '';
+            if (config.format === '12') { ampm = hours >= 12 ? 'PM' : 'AM'; hours = hours % 12 || 12; }
+            hours = String(hours).padStart(2, '0');
+            
+            document.getElementById('clock').innerHTML = config.showSec 
+                ? `${hours}:${minutes}<span style="font-size: 0.4em; margin-left: 1vw; opacity: 0.7;">${seconds}</span>` 
+                : `${hours}:${minutes}`;
+            document.getElementById('ampm-indicator').innerText = config.format === '12' && !config.showSec ? ampm : '';
+            if (config.showDate) {
+                const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+                const d = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+                document.getElementById('date').innerText = `${d[now.getDay()]}, ${m[now.getMonth()]} ${now.getDate()}`;
+            }
+        }
+        setInterval(updateClock, 1000);
+
+        let wakeLock = null;
+        async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
+        document.addEventListener('visibilitychange', () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
+
+        let hideTimeout; let isSettingsOpen = false;
+        function resetHideTimer() {
+            if (isSettingsOpen) return;
+            document.getElementById('controls-overlay').classList.add('visible');
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => document.getElementById('controls-overlay').classList.remove('visible'), 4000);
+        }
+
+        document.body.addEventListener('click', e => { if (!document.getElementById('settings-panel').contains(e.target)) resetHideTimer(); });
+        document.body.addEventListener('touchstart', e => { if (!document.getElementById('settings-panel').contains(e.target)) resetHideTimer(); }, {passive: true});
+
+        document.getElementById('change-btn').addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('file-input').click(); resetHideTimer(); });
+        document.getElementById('settings-btn').addEventListener('click', (e) => { e.stopPropagation(); isSettingsOpen = true; document.getElementById('settings-panel').classList.add('active'); document.getElementById('controls-overlay').classList.remove('visible'); });
+        document.getElementById('close-settings').addEventListener('click', () => { isSettingsOpen = false; document.getElementById('settings-panel').classList.remove('active'); resetHideTimer(); });
+        document.getElementById('fullscreen-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); resetHideTimer();
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().then(requestWakeLock).catch(()=>{}); } 
+            else if (document.exitFullscreen) document.exitFullscreen();
+        });
+        
+        document.body.addEventListener('click', function initWakeLock() { requestWakeLock(); video.play(); document.body.removeEventListener('click', initWakeLock); }, { once: true });
+    </script>
+</body>
+</html>
